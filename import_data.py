@@ -52,6 +52,10 @@ def import_a_set(path="data/Data_A.csv"):
     frame.columns = COLUMNS
     return frame
 
+def mean_normalization(serie):
+    return (serie-serie.mean())/serie.std()
+def min_max_scaling(serie):
+    return (serie - serie.min())/(serie.max()-serie.min())
 
 def rescale_features_4(frame=None,path=None):
     """
@@ -63,6 +67,7 @@ def rescale_features_4(frame=None,path=None):
     scale_A = (frame["A_P_L4"] - frame["MID_P"]).values
     scale_B = -(frame["B_P_L4"] - frame["MID_P"]).values
 
+    #GAP between levels of same side
     frame["A_D_1"] = (frame["A_P_L1"] - frame["MID_P"])/scale_A
     frame["A_D_2"] = (frame["A_P_L2"] - frame["A_P_L1"])/scale_A
     frame["A_D_3"] = (frame["A_P_L3"] - frame["A_P_L2"])/scale_A
@@ -73,21 +78,42 @@ def rescale_features_4(frame=None,path=None):
     frame["B_D_3"] = (frame["B_P_L3"] - frame["B_P_L2"])/scale_B
     frame["B_D_4"] = (frame["B_P_L4"] - frame["B_P_L3"])/scale_B
 
-    frame['SUM_V'] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"] + frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"] 
+        
+    #Sum of volume for same side -> 2 columns + one categorical column for whichever side has more volume
+    frame["SUM_V_A"] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"]
+    frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
+    #Normalize volumn (as % of total volume of the row)
+    for vol_col in ["A_V_L1","A_V_L2","A_V_L3","A_V_L4","B_V_L1","B_V_L2","B_V_L3","B_V_L4"]:
+        frame[vol_col] = frame[vol_col] / (frame["SUM_V_A"]+frame["SUM_V_B"])
+
+    frame["V_M_L"] = frame["SUM_V_A"] - frame["SUM_V_B"]
+    frame["V_M_L"] = frame["V_M_L"].apply(lambda x: 1 if x>0 else 0)
+    frame["SUM_V_A"] = min_max_scaling(frame["SUM_V_A"])
+    frame["SUM_V_B"] = min_max_scaling(frame["SUM_V_B"])
+
+    # SIGMA(Price * Volume) - MID * total _volume
+    frame["WPV_MID_DIF"] = -frame["MID_P"] * (frame["SUM_V_A"]+frame["SUM_V_B"])
+    #Volume x Price columns => More meaningful level info
+    for side in ["A","B"]:
+        for level in ["L1","L2","L3","L4"]:
+            frame[f"WPV_{side}_{level}"] = frame[f"{side}_P_{level}"] * frame[f"{side}_V_{level}"]
+            frame["WPV_MID_DIF"] += frame[f"WPV_{side}_{level}"]
+            frame[f"WPV_{side}_{level}"] = min_max_scaling(frame[f"WPV_{side}_{level}"])
     
+    frame["WPV_MID_DIF"] = (frame["WPV_MID_DIF"]-frame["WPV_MID_DIF"].min()) / (frame["WPV_MID_DIF"].max()-frame["WPV_MID_DIF"].min())
+
+    #Normalize price setting lowest at bid at 0, highest ask at 1
     frame["scale"] = (frame["A_P_L4"] - frame["B_P_L4"])
     for price_col in ["B_P_L3","B_P_L2","B_P_L1","A_P_L4","A_P_L3","A_P_L2","A_P_L1","MID_P"]:
         frame[price_col] = (frame[price_col]-frame["B_P_L4"])/frame["scale"]
+    #Normalize mid column-wise (not useful ?)
+    frame["MID_P"] = min_max_scaling(frame["MID_P"])
 
-    for vol_col in ["A_V_L1","A_V_L2","A_V_L3","A_V_L4","B_V_L1","B_V_L2","B_V_L3","B_V_L4"]:
-        frame[vol_col+"P"] = frame[vol_col] / frame["SUM_V"]
-        frame[vol_col] = (frame[vol_col]-frame[vol_col].min())/(frame[vol_col].max()-frame[vol_col].min()) 
-    frame["MID_P"] = (frame["MID_P"]-frame["MID_P"].min())/(frame["MID_P"].max()-frame["MID_P"].min()) 
-    frame["LABEL"] = frame["LABEL"] *2 -1
+    frame  = frame*2 -1
     frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
     frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
     frame =frame.drop("LABEL",axis=1)
-    frame =frame.drop(['scale',"A_P_L4","B_P_L4","SUM_V"],axis=1)
+    frame =frame.drop(['scale',"A_P_L4","B_P_L4"],axis=1)
 
     return frame
 
@@ -113,6 +139,50 @@ def rescale_features_2(frame=None,path=None):
     frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
     frame =frame.drop("LABEL",axis=1)
     return frame
+
+
+def rescale_features_5(frame=None,path=None):
+    """
+    Lowest bid @ 0 , Highest ask at 1
+    Volumes as % of sum of volume
+    """
+    frame = _norm_input_function(frame,path)
+    
+    frame["MID_P"] = (frame["A_P_L1"] + frame["B_P_L1"]) / 2
+
+    #GAP between levels of same side
+    frame["A_D_1"] = (frame["A_P_L1"] - frame["MID_P"])
+    frame["A_D_2"] = (frame["A_P_L2"] - frame["A_P_L1"])
+    frame["A_D_3"] = (frame["A_P_L3"] - frame["A_P_L2"])
+    frame["A_D_4"] = (frame["A_P_L4"] - frame["A_P_L3"])
+
+    frame["B_D_1"] = (frame["B_P_L1"] - frame["MID_P"])
+    frame["B_D_2"] = (frame["B_P_L2"] - frame["B_P_L1"])
+    frame["B_D_3"] = (frame["B_P_L3"] - frame["B_P_L2"])
+    frame["B_D_4"] = (frame["B_P_L4"] - frame["B_P_L3"])
+
+    frame["SUM_V_A"] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"]
+    frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
+
+    frame["V_M_L"] = frame["SUM_V_A"] - frame["SUM_V_B"]
+    frame["V_M_L"] = frame["V_M_L"].apply(lambda x: 1 if x>0 else 0)
+
+    frame["WPV_MID_DIF"] = -frame["MID_P"] * (frame["SUM_V_A"]+frame["SUM_V_B"])
+    for side in ["A","B"]:
+        for level in ["L1","L2","L3","L4"]:
+            frame[f"WPV_{side}_{level}"] = frame[f"{side}_P_{level}"] * frame[f"{side}_V_{level}"]
+            frame["WPV_MID_DIF"] += frame[f"WPV_{side}_{level}"]
+    
+    for col in frame.columns:
+        if "LABEL" not in col and "LC" not in col:
+            frame[col] = (mean_normalization(frame[col]))
+    frame["LABEL"] = frame["LABEL"] *2 -1
+    frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
+    frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
+    frame =frame.drop("LABEL",axis=1)
+    
+    return frame
+
 
 def rescale_features_1(frame=None,path=None):
     """
@@ -193,7 +263,9 @@ Compute level gap on sell/buy side : Train model on the 3x2 delta
 """
 
 if __name__=="__main__":
-    frame,_ = main_pipeline(feat_function=4,split=False)
+    frame,_ = main_pipeline(feat_function=5,split=False)
     print(frame.head())
+    print(frame.describe())
+    frame.describe().to_excel("output/describe.xlsx")
     #x_train,y_train,x_test,y_test = split_training_data(frame=data,test_ratio=0.1)
     #["B_P_L4","B_P_L3","B_P_L2","B_P_L1","A_P_L4","A_P_L3","A_P_L2","A_P_L1"]
