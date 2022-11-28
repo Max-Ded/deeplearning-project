@@ -18,6 +18,14 @@ def PCA_dataframe():
     # Dump components relations with features:
     print(pd.DataFrame(pca.components_,columns=data_scaled.columns,index = [f"PC-{i}" for i in range(1,n_components+1)]))
 
+def measure_random(sample):
+    score =0
+    for index in range(len(sample)-1):
+        if sample[index]!=sample[index+1]:
+            score+=5
+        else:
+            score-=5
+    return score
 
 def most_recent_tick():
     df,_ = import_data.main_pipeline(feat_function=0,split=False)
@@ -32,8 +40,10 @@ def most_recent_tick():
     df_count = pd.DataFrame(columns=["0","1"])
     df_count["0"] = df_0
     df_count["1"] = df_1
+    df_count['ratio'] = (df_count["0"]/df_count["1"]).apply(lambda x : max(x,1/x))
+    df_count = df_count.sort_values("ratio",ascending=False).drop("ratio",axis=1)
 
-    df_count.index = [k[0] for k in list(df_count.index)]
+    df_count.index = [f"{k[0]}\n{measure_random(k[0])}" for k in list(df_count.index)]
     
     ax = df_count.plot(kind='bar', rot=0, xlabel='Serie', ylabel='Value', title='My Plot', figsize=(25, 8))
 

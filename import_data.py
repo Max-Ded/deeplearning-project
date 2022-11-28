@@ -57,6 +57,14 @@ def mean_normalization(serie):
 def min_max_scaling(serie):
     return (serie - serie.min())/(serie.max()-serie.min())
 
+
+def measure_random(sample):
+    score =0
+    for index in range(len(sample)-1):
+        if sample[index]!=sample[index+1]:
+            score+=1
+    return score
+
 def rescale_features_4(frame=None,path=None):
     """
     Gap of MID - L1 - L2 - L3 - L4
@@ -165,6 +173,7 @@ def rescale_features_5(frame=None,path=None):
     frame["B_D_4"] = (frame["B_P_L4"] - frame["B_P_L3"])
 
     frame["LC_FP"] = (frame["LC_1"]  + frame["LC_2"]) - (frame["LC_3"]  + frame["LC_4"] + frame["LC_5"])
+    frame["LC_CONCAT"] = (frame["LC_1"].apply(str) + frame["LC_2"].apply(str) +  frame["LC_3"].apply(str)  + frame["LC_4"].apply(str) + frame["LC_5"].apply(str)).apply(measure_random)
 
     frame["SUM_V_A"] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"]
     frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
