@@ -117,6 +117,9 @@ def rescale_features_4(frame=None,path=None):
 
     return frame
 
+def rescale_features_0(frame=None,path=None):
+    frame = _norm_input_function(frame,path)
+    return frame
 
 def rescale_features_2(frame=None,path=None):
     """
@@ -160,6 +163,8 @@ def rescale_features_5(frame=None,path=None):
     frame["B_D_2"] = (frame["B_P_L2"] - frame["B_P_L1"])
     frame["B_D_3"] = (frame["B_P_L3"] - frame["B_P_L2"])
     frame["B_D_4"] = (frame["B_P_L4"] - frame["B_P_L3"])
+
+    frame["LC_FP"] = (frame["LC_1"]  + frame["LC_2"]) - (frame["LC_3"]  + frame["LC_4"] + frame["LC_5"])
 
     frame["SUM_V_A"] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"]
     frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
