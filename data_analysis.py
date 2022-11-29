@@ -3,6 +3,7 @@ from sklearn.decomposition import PCA
 import import_data
 import matplotlib.pyplot as plt
 import numpy as np 
+from collections import Counter
 
 def PCA_dataframe():
     df,_ = import_data.main_pipeline(feat_function=0,split=False)
@@ -27,6 +28,19 @@ def measure_random(sample):
             score-=5
     return score
 
+def measure_entropy(sample):
+    c = Counter(sample)
+    e = 0
+    for v in c.values():
+        e-= v/len(sample) * np.log(v/len(sample))
+    score =1
+    for index in range(len(sample)-1):
+        if sample[index]!=sample[index+1]:
+            score+=1
+        else:
+            score-=2
+    return e * score
+
 def most_recent_tick():
     df,_ = import_data.main_pipeline(feat_function=0,split=False)
 
@@ -43,10 +57,12 @@ def most_recent_tick():
     df_count['ratio'] = (df_count["0"]/df_count["1"]).apply(lambda x : max(x,1/x))
     df_count = df_count.sort_values("ratio",ascending=False).drop("ratio",axis=1)
 
-    df_count.index = [f"{k[0]}\n{measure_random(k[0])}" for k in list(df_count.index)]
+    df_count.index = [f"{k[0]}\n{round(measure_entropy(k[0]),2)}" for k in list(df_count.index)]
     
-    ax = df_count.plot(kind='bar', rot=0, xlabel='Serie', ylabel='Value', title='My Plot', figsize=(25, 8))
-
+    fig = plt.figure(figsize=(25, 8))
+    ax = fig.add_subplot(111)
+    ax.plot([k for k in df_count.index],[round(measure_entropy(k),2) for k in df_count.index],color="red",linestyle="dashed")
+    df_count.plot(ax=ax,kind='bar', rot=0, xlabel='Serie', ylabel='Value', title='My Plot',secondary_y=True)
     # add some labels
     for c in ax.containers:
         # set the bar label

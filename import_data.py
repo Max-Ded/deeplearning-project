@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-
+from collections import Counter
 COLUMNS = [\
     "LABEL",
     "A_P_L1",
@@ -59,11 +59,35 @@ def min_max_scaling(serie):
 
 
 def measure_random(sample):
+    """
+    500 epoch -> 83.41
+    """
     score =0
     for index in range(len(sample)-1):
         if sample[index]!=sample[index+1]:
             score+=1
     return score
+
+"""
+Measure random alone : 
+    500 epoch -> 83.41
+
+Measure entropy(random) alone : 
+    500 epochs -> 82.23%
+    1500 epochs -> 86.14 %
+
+Measure entropy (sole)  + random :
+    500 epochs -> 83.98
+
+Measeure entropy (random) + random :
+    500 epochs -> 83.96
+"""
+def measure_entropy(sample):
+    c = Counter(sample)
+    e = 0
+    for v in c.values():
+        e-= v/len(sample) * np.log(v/len(sample))
+    return e
 
 def rescale_features_4(frame=None,path=None):
     """
@@ -173,7 +197,10 @@ def rescale_features_5(frame=None,path=None):
     frame["B_D_4"] = (frame["B_P_L4"] - frame["B_P_L3"])
 
     frame["LC_FP"] = (frame["LC_1"]  + frame["LC_2"]) - (frame["LC_3"]  + frame["LC_4"] + frame["LC_5"])
-    frame["LC_CONCAT"] = (frame["LC_1"].apply(str) + frame["LC_2"].apply(str) +  frame["LC_3"].apply(str)  + frame["LC_4"].apply(str) + frame["LC_5"].apply(str)).apply(measure_random)
+    frame["LC_FP_R"] = (frame["LC_1"]  + frame["LC_2"]) / (frame["LC_3"]  + frame["LC_4"] + frame["LC_5"]).apply(lambda x : max(1,x))
+
+    frame["LC_CONCAT_RANDOM"] = (frame["LC_1"].apply(str) + frame["LC_2"].apply(str) +  frame["LC_3"].apply(str)  + frame["LC_4"].apply(str) + frame["LC_5"].apply(str)).apply(measure_random)
+    frame["LC_CONCAT_ENTROPY"] = (frame["LC_1"].apply(str) + frame["LC_2"].apply(str) +  frame["LC_3"].apply(str)  + frame["LC_4"].apply(str) + frame["LC_5"].apply(str)).apply(measure_entropy)
 
     frame["SUM_V_A"] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"]
     frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
@@ -190,6 +217,11 @@ def rescale_features_5(frame=None,path=None):
     for col in frame.columns:
         if "LABEL" not in col and "LC" not in col:
             frame[col] = (mean_normalization(frame[col]))
+    frame["LC_FP"] = mean_normalization(frame["LC_FP"])
+    frame["LC_FP_R"] = mean_normalization(frame["LC_FP_R"])
+    frame["LC_CONCAT_RANDOM"] = mean_normalization(frame["LC_CONCAT_RANDOM"])
+    frame["LC_CONCAT_ENTROPY"] = mean_normalization(frame["LC_CONCAT_ENTROPY"])
+
     frame["LABEL"] = frame["LABEL"] *2 -1
     frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
     frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
