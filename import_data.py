@@ -312,7 +312,8 @@ def rescale_features_6(frame=None,path=None,double_label=False):
             frame[f"WPV_{side}_{level}"] = frame[f"{side}_P_{level}"] * frame[f"{side}_V_{level}"]
             frame["WPV_MID_DIF"] += frame[f"WPV_{side}_{level}"]
             frame[f"{side}_V_{level}_PCT"] = frame[f"{side}_V_{level}"] / (frame["SUM_V_A"]+frame["SUM_V_B"]) 
-    
+            frame[f"WPV_{side}_{level}_PCT"] = frame[f"{side}_P_{level}"] * frame[f"{side}_V_{level}_PCT"]
+
     for side in ['A','B']:
         for level in range(1,5):
             frame[f"{side}_V_L{level}_LOG"] = np.log(frame[f"{side}_V_L{level}"])
