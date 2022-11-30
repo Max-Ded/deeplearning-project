@@ -2,10 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow.keras as keras
-from scikeras.wrappers import KerasClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 
 import import_data
@@ -29,7 +25,6 @@ if __name__=="__main__":
     frames,params = import_data.main_pipeline(feat_function=6,test_ratio=0.1)
     x_train,y_train,x_test,y_test = frames
     training_point,input_shape = params
-
     model = keras.Sequential([
         keras.layers.InputLayer(input_shape=(input_shape,)),
         keras.layers.Dense(int(input_shape+15), activation="tanh"),
@@ -37,9 +32,19 @@ if __name__=="__main__":
         keras.layers.Dense(int(input_shape+15), activation="tanh"),
         keras.layers.Dense(2, activation="softmax")
     ])
+    initial_learning_rate = 0.8
+    lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=100000,
+        decay_rate=0.2,
+        staircase=True)
+
+#    model.compile(optimizer=keras.optimizers.SGD(learning_rate=lr_schedule),
+ #               loss='binary_crossentropy',
+  #              metrics=['accuracy'])    
     model.compile(optimizer=keras.optimizers.Adam(), loss="binary_crossentropy", metrics=["accuracy"])
-    
-    history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs=1000  ,batch_size =x_train.shape[0]//100,verbose=0)
+
+    history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs=500  ,batch_size =1000,verbose=0)
     h_values = history.history['accuracy']
     h_delta = [np.log(h_values[i+1]/h_values[i]) for i in range(len(h_values)-1)]
     fig,axs = plt.subplots(2,1,figsize=(15,8),sharex = True)
@@ -65,5 +70,3 @@ if __name__=="__main__":
     _,_,(_,a) = custom_accuracy(prediction,y_test)
     print(a)
     plt.show()
-
-    

@@ -266,7 +266,7 @@ def rescale_features_3(frame=None,path=None):
     frame =frame.drop("LABEL",axis=1)
     return frame
 
-def rescale_features_6(frame=None,path=None):
+def rescale_features_6(frame=None,path=None,double_label=False):
     """
     Lowest bid @ 0 , Highest ask at 1
     Volumes as % of sum of volume
@@ -311,11 +311,11 @@ def rescale_features_6(frame=None,path=None):
         for level in ["L1","L2","L3","L4"]:
             frame[f"WPV_{side}_{level}"] = frame[f"{side}_P_{level}"] * frame[f"{side}_V_{level}"]
             frame["WPV_MID_DIF"] += frame[f"WPV_{side}_{level}"]
+            frame[f"{side}_V_{level}_PCT"] = frame[f"{side}_V_{level}"] / (frame["SUM_V_A"]+frame["SUM_V_B"]) 
     
     for side in ['A','B']:
         for level in range(1,5):
-            #frame = frame.drop(f"{side}_P_L{level}",axis=1)
-            frame[f"{side}_V_L{level}"] = np.log(frame[f"{side}_V_L{level}"])
+            frame[f"{side}_V_L{level}_LOG"] = np.log(frame[f"{side}_V_L{level}"])
     for col in frame.columns:
         if "LABEL" not in col and "LC" not in col:
             frame[col] = (mean_normalization(frame[col]))
@@ -324,31 +324,38 @@ def rescale_features_6(frame=None,path=None):
     frame["LC_CONCAT_RANDOM"] = mean_normalization(frame["LC_CONCAT_RANDOM"])
     frame["LC_CONCAT_ENTROPY"] = mean_normalization(frame["LC_CONCAT_ENTROPY"])
 
-    frame["LABEL"] = frame["LABEL"] *2 -1
-    frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
-    frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
-    frame =frame.drop("LABEL",axis=1)
+    if double_label:
+        frame["LABEL"] = frame["LABEL"] *2 -1
+        frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
+        frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
+        frame =frame.drop("LABEL",axis=1)
     
     return frame
 
-def split_training_data(frame = None,test_ratio = 0.1,path=None):
+def split_training_data(frame = None,test_ratio = 0.1,path=None,double_label=False):
 
     frame = _norm_input_function(frame,path)
     test_frame = frame.sample(frac = test_ratio).reset_index(drop=True)
     train_frame = frame.drop(test_frame.index).reset_index(drop=True)
     
-    y_train = train_frame[["LABEL_UP","LABEL_DOWN"]]
-    x_train = train_frame.drop(["LABEL_UP","LABEL_DOWN"],axis=1)
-    y_test = test_frame[["LABEL_UP","LABEL_DOWN"]]
-    x_test = test_frame.drop(["LABEL_UP","LABEL_DOWN"],axis=1)
+    if double_label:
+        y_train = train_frame[["LABEL_UP","LABEL_DOWN"]]
+        x_train = train_frame.drop(["LABEL_UP","LABEL_DOWN"],axis=1)
+        y_test = test_frame[["LABEL_UP","LABEL_DOWN"]]
+        x_test = test_frame.drop(["LABEL_UP","LABEL_DOWN"],axis=1)
+    else:
+        y_train = train_frame[["LABEL"]]
+        x_train = train_frame.drop(["LABEL"],axis=1)
+        y_test = test_frame[["LABEL"]]
+        x_test = test_frame.drop(["LABEL"],axis=1)       
 
     return x_train,y_train,x_test,y_test
 
-def main_pipeline(path="data/Data_A.csv",feat_function:int=1,test_ratio:float = 0.1,split=True):
+def main_pipeline(path="data/Data_A.csv",feat_function:int=1,test_ratio:float = 0.1,split=True,double_label = True):
     frame = _norm_input_function(None,path)
-    frame = globals()[f'rescale_features_{feat_function}'](frame)
+    frame = globals()[f'rescale_features_{feat_function}'](frame,double_label=double_label)
     if split:
-        x_train,y_train,x_test,y_test = split_training_data(frame,test_ratio)
+        x_train,y_train,x_test,y_test = split_training_data(frame,test_ratio,double_label=double_label)
         return (x_train,y_train,x_test,y_test),(x_train.shape)
     else:
         return frame,frame.shape
