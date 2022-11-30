@@ -47,13 +47,16 @@ def _norm_input_function(frame,path):
         else:
             raise Exception("Error : Provide a dataframe to split")
     return frame
-def import_a_set(path="data/Data_A.csv"):
+def import_a_set(path="data/Data_A.csv",is_test=False):
     frame = pd.read_csv(path,header=None)
-    frame.columns = COLUMNS
+    if is_test:
+        frame.columns = [c for c in COLUMNS if c!="LABEL"]
+    else:
+        frame.columns = COLUMNS
     return frame
 
 def mean_normalization(serie):
-    return (serie-serie.mean())/serie.std()
+    return(serie-serie.mean())/serie.std()
 def min_max_scaling(serie):
     return (serie - serie.min())/(serie.max()-serie.min())
 
@@ -263,6 +266,70 @@ def rescale_features_3(frame=None,path=None):
     frame =frame.drop("LABEL",axis=1)
     return frame
 
+def rescale_features_6(frame=None,path=None):
+    """
+    Lowest bid @ 0 , Highest ask at 1
+    Volumes as % of sum of volume
+
+    SPLIT PRICE > MEAN < Below MEAN 0 else A/B_P_L1 ===> A/B_P_Li_OM + A/B_P_Li_UM
+    """
+    frame = _norm_input_function(frame,path)
+    
+    frame["MID_P"] = (frame["A_P_L1"] + frame["B_P_L1"]) / 2
+
+    for side in ['A','B']:
+        for level in range(1,5):
+            mean = frame[f"{side}_P_L{level}"].mean()
+            frame[f"{side}_P_L{level}_UM"] = frame[f"{side}_P_L{level}"].apply(lambda x : max(mean-x,0))
+            frame[f"{side}_P_L{level}_OM"] = frame[f"{side}_P_L{level}"].apply(lambda x : max(x-mean,0))
+
+    #GAP between levels of same side
+    frame["A_D_1"] = (frame["A_P_L1"] - frame["MID_P"])
+    frame["A_D_2"] = (frame["A_P_L2"] - frame["A_P_L1"])
+    frame["A_D_3"] = (frame["A_P_L3"] - frame["A_P_L2"])
+    frame["A_D_4"] = (frame["A_P_L4"] - frame["A_P_L3"])
+
+    frame["B_D_1"] = (frame["B_P_L1"] - frame["MID_P"])
+    frame["B_D_2"] = (frame["B_P_L2"] - frame["B_P_L1"])
+    frame["B_D_3"] = (frame["B_P_L3"] - frame["B_P_L2"])
+    frame["B_D_4"] = (frame["B_P_L4"] - frame["B_P_L3"])
+
+    frame["LC_FP"] = (frame["LC_1"]  + frame["LC_2"]) - (frame["LC_3"]  + frame["LC_4"] + frame["LC_5"])
+    frame["LC_FP_R"] = (frame["LC_1"]  + frame["LC_2"]) / (frame["LC_3"]  + frame["LC_4"] + frame["LC_5"]).apply(lambda x : max(1,x))
+
+    frame["LC_CONCAT_RANDOM"] = (frame["LC_1"].apply(str) + frame["LC_2"].apply(str) +  frame["LC_3"].apply(str)  + frame["LC_4"].apply(str) + frame["LC_5"].apply(str)).apply(measure_random)
+    frame["LC_CONCAT_ENTROPY"] = (frame["LC_1"].apply(str) + frame["LC_2"].apply(str) +  frame["LC_3"].apply(str)  + frame["LC_4"].apply(str) + frame["LC_5"].apply(str)).apply(measure_entropy)
+
+    frame["SUM_V_A"] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"]
+    frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
+
+    frame["V_M_L"] = frame["SUM_V_A"] - frame["SUM_V_B"]
+    frame["V_M_L"] = frame["V_M_L"].apply(lambda x: 1 if x>0 else 0)
+
+    frame["WPV_MID_DIF"] = -frame["MID_P"] * (frame["SUM_V_A"]+frame["SUM_V_B"])
+    for side in ["A","B"]:
+        for level in ["L1","L2","L3","L4"]:
+            frame[f"WPV_{side}_{level}"] = frame[f"{side}_P_{level}"] * frame[f"{side}_V_{level}"]
+            frame["WPV_MID_DIF"] += frame[f"WPV_{side}_{level}"]
+    
+    for side in ['A','B']:
+        for level in range(1,5):
+            #frame = frame.drop(f"{side}_P_L{level}",axis=1)
+            frame[f"{side}_V_L{level}"] = np.log(frame[f"{side}_V_L{level}"])
+    for col in frame.columns:
+        if "LABEL" not in col and "LC" not in col:
+            frame[col] = (mean_normalization(frame[col]))
+    frame["LC_FP"] = mean_normalization(frame["LC_FP"])
+    frame["LC_FP_R"] = mean_normalization(frame["LC_FP_R"])
+    frame["LC_CONCAT_RANDOM"] = mean_normalization(frame["LC_CONCAT_RANDOM"])
+    frame["LC_CONCAT_ENTROPY"] = mean_normalization(frame["LC_CONCAT_ENTROPY"])
+
+    frame["LABEL"] = frame["LABEL"] *2 -1
+    frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
+    frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
+    frame =frame.drop("LABEL",axis=1)
+    
+    return frame
 
 def split_training_data(frame = None,test_ratio = 0.1,path=None):
 
@@ -309,9 +376,9 @@ Compute level gap on sell/buy side : Train model on the 3x2 delta
 """
 
 if __name__=="__main__":
-    frame,_ = main_pipeline(feat_function=5,split=False)
+    frame,_ = main_pipeline(feat_function=6,split=False)
     print(frame.head())
     print(frame.describe())
-    frame.describe().to_excel("output/describe.xlsx")
+    frame.sample(n=2500).to_excel("output/processed_data.xlsx")
     #x_train,y_train,x_test,y_test = split_training_data(frame=data,test_ratio=0.1)
     #["B_P_L4","B_P_L3","B_P_L2","B_P_L1","A_P_L4","A_P_L3","A_P_L2","A_P_L1"]

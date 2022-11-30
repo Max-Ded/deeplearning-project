@@ -2,6 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow.keras as keras
+from scikeras.wrappers import KerasClassifier
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+
 
 import import_data
 
@@ -21,7 +26,7 @@ def custom_accuracy(prediction : np.array,y_test):
     return count,len(res),count/len(res)
 
 if __name__=="__main__":
-    frames,params = import_data.main_pipeline(feat_function=5,test_ratio=0.1)
+    frames,params = import_data.main_pipeline(feat_function=6,test_ratio=0.1)
     x_train,y_train,x_test,y_test = frames
     training_point,input_shape = params
 
@@ -33,7 +38,8 @@ if __name__=="__main__":
         keras.layers.Dense(2, activation="softmax")
     ])
     model.compile(optimizer=keras.optimizers.Adam(), loss="binary_crossentropy", metrics=["accuracy"])
-    history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs=500,batch_size = training_point//100,verbose=0)
+    
+    history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs=1000  ,batch_size =x_train.shape[0]//100,verbose=0)
     h_values = history.history['accuracy']
     h_delta = [np.log(h_values[i+1]/h_values[i]) for i in range(len(h_values)-1)]
     fig,axs = plt.subplots(2,1,figsize=(15,8),sharex = True)
@@ -59,3 +65,5 @@ if __name__=="__main__":
     _,_,(_,a) = custom_accuracy(prediction,y_test)
     print(a)
     plt.show()
+
+    
