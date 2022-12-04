@@ -266,7 +266,7 @@ def rescale_features_3(frame=None,path=None):
     frame =frame.drop("LABEL",axis=1)
     return frame
 
-def rescale_features_6(frame=None,path=None,double_label=False):
+def rescale_features_6(frame=None,path=None,double_label=False,no_label=False):
     """
     Lowest bid @ 0 , Highest ask at 1
     Volumes as % of sum of volume
@@ -327,11 +327,12 @@ def rescale_features_6(frame=None,path=None,double_label=False):
     frame["LC_CONCAT_RANDOM"] = mean_normalization(frame["LC_CONCAT_RANDOM"])
     frame["LC_CONCAT_ENTROPY"] = mean_normalization(frame["LC_CONCAT_ENTROPY"])
 
-    if double_label:
-        frame["LABEL"] = frame["LABEL"] *2 -1
-        frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
-        frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
-        frame =frame.drop("LABEL",axis=1)
+    if not no_label:
+        if double_label:
+            frame["LABEL"] = frame["LABEL"] *2 -1
+            frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
+            frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
+            frame =frame.drop("LABEL",axis=1)
     
     return frame
 
