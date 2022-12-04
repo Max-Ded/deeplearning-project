@@ -2,10 +2,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow.keras as keras
-
-
+from keras_visualizer import visualizer 
+from keras.utils.vis_utils import plot_model
+from scikeras.wrappers import KerasClassifier
+from sklearn.model_selection import GridSearchCV
+import json
+import os
 import import_data
+import warnings
+warnings.filterwarnings("ignore")
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 def class_proba(row):
     if row[0]>row[1]:
@@ -21,52 +28,88 @@ def custom_accuracy(prediction : np.array,y_test):
     count = np.bincount(res)
     return count,len(res),count/len(res)
 
-if __name__=="__main__":
-    frames,params = import_data.main_pipeline(feat_function=6,test_ratio=0.1)
+def train_model_from_pipeline(model = None,epoch = 600,batch_size = 1000,plot_accuracy = False,test_ratio = 0.1,prt=True):
+    
+    frames,_ = import_data.main_pipeline(feat_function=6,test_ratio=test_ratio)
     x_train,y_train,x_test,y_test = frames
-    training_point,input_shape = params
-    model = keras.Sequential([
-        keras.layers.InputLayer(input_shape=(input_shape,)),
-        keras.layers.Dense(int(input_shape+15), activation="tanh"),
-        keras.layers.Dense(int(input_shape+15), activation="tanh"),
-        keras.layers.Dense(int(input_shape+15), activation="tanh"),
-        keras.layers.Dense(2, activation="softmax")
-    ])
-    initial_learning_rate = 0.8
-    lr_schedule = keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate,
-        decay_steps=100000,
-        decay_rate=0.2,
-        staircase=True)
+    
+    model = model if model else create_model()
 
-#    model.compile(optimizer=keras.optimizers.SGD(learning_rate=lr_schedule),
- #               loss='binary_crossentropy',
-  #              metrics=['accuracy'])    
-    model.compile(optimizer=keras.optimizers.Adam(), loss="binary_crossentropy", metrics=["accuracy"])
+    history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs= epoch ,batch_size =batch_size,verbose=0)
 
-    history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs=900  ,batch_size =1000,verbose=0)
-    h_values = history.history['accuracy']
-    h_delta = [np.log(h_values[i+1]/h_values[i]) for i in range(len(h_values)-1)]
-    fig,axs = plt.subplots(2,1,figsize=(15,8),sharex = True)
-    ax1 = axs[0]
-    ax1.plot(h_values)
-    ax1.set_title('Model accuracy')
-    ax1.set_ylabel('accuracy')
-    ax1.legend(['train accuracy'], loc='upper left')
-    ax2 = axs[1]
-    ax2.plot(h_delta,color="orange")
-    ax2.plot([0 for _ in range(len(h_delta))], color = "b",linestyle="dashed")
-    ax2.set_title('Accuracy Delta')
-    ax2.set_ylabel('$\Delta_{Accuracy}$')
-    ax2.legend(['train delta'], loc='upper left')
-    ax2.set_xlabel('epoch')
+    if plot_accuracy:
+        h_values = history.history['accuracy']
+        h_delta = [np.log(h_values[i+1]/h_values[i]) for i in range(len(h_values)-1)]
+        fig,axs = plt.subplots(2,1,figsize=(15,8),sharex = True)
+        ax1 = axs[0]
+        ax1.plot(h_values)
+        ax1.set_title('Model accuracy')
+        ax1.set_ylabel('accuracy')
+        ax1.legend(['train accuracy'], loc='upper left')
+        ax2 = axs[1]
+        ax2.plot(h_delta,color="orange")
+        ax2.plot([0 for _ in range(len(h_delta))], color = "b",linestyle="dashed")
+        ax2.set_title('Accuracy Delta')
+        ax2.set_ylabel('$\Delta_{Accuracy}$')
+        ax2.legend(['train delta'], loc='upper left')
+        ax2.set_xlabel('epoch')
+        fig.savefig(f"output/model_train_b{batch_size}_e{epoch}.png")
     
     _, accuracy = model.evaluate(x_test.to_numpy(), y_test.to_numpy())
-    print(f"Accuracy : {round(accuracy,4)*100}%")
-
     prediction = model.predict(x_test.to_numpy())
-    y_hat = pd.DataFrame(prediction)
-
     _,_,(_,a) = custom_accuracy(prediction,y_test)
-    print(a)
-    plt.show()
+
+    if prt:
+        print(f"Accuracy : {round(accuracy,4)*100}% || {a}")
+
+    return accuracy    
+    
+def create_model(plot=False,input_shape=86):
+
+    model = keras.Sequential([
+        keras.layers.InputLayer(input_shape=(input_shape,)),
+        keras.layers.Dense(100, activation="tanh",name="Hidden_layer_1"),
+        keras.layers.Dense(100, activation="tanh",name="Hidden_layer_2"),
+        keras.layers.Dense(100, activation="tanh",name="Hidden_layer_3"),
+        keras.layers.Dense(2, activation="softmax",name="Output")
+    ])
+    model.compile(optimizer=keras.optimizers.Adam(), loss="binary_crossentropy", metrics=["accuracy"])
+    if plot:
+        plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
+    return model
+
+def grid_search_b_e():
+    frames,_ = import_data.main_pipeline(feat_function=6,test_ratio=0,split=False)
+    X = frames.drop(["LABEL_DOWN","LABEL_UP"],axis=1)
+    Y = frames[["LABEL_DOWN","LABEL_UP"]]
+
+    model = KerasClassifier(model=create_model, verbose=0)
+    # define the grid search parameters
+    #batch_size = [16,64,512,1024,2048]
+    #epochs = [50,250,600,1200]
+    batch_size = [1024,2048]
+    epochs = (250,600)
+    param_grid = dict(batch_size=batch_size, epochs=epochs)
+    grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=2)
+    grid_result = grid.fit(X, Y)
+    return grid_result
+
+def custom_grid_search(batch_epoch_dict,test_ratio=0.1,number_test = 1):
+
+    cv_results_df = pd.DataFrame(columns = ["mean_acc","std_dev_acc","batch_size","epochs"])
+
+    for b,epochs_list in batch_epoch_dict.items():
+        for epochs in epochs_list:
+            res = []
+            for _ in range(number_test):
+                m = create_model()
+                acc = train_model_from_pipeline(m,epoch= epochs,batch_size=b,test_ratio=test_ratio,prt=False)
+                res.append(acc)
+            cv_results_df = cv_results_df.append({"mean_acc":np.array(res).mean(),"std_dev_acc":np.array(res).std(),"batch_size" :b,"epochs":epochs},ignore_index=True)
+    
+    with open("cv_result_x.json","w") as f:
+        f.write(cv_results_df.to_json())
+
+if __name__=="__main__":
+    bed = {16:[10,50,150],64:[50,150,300],512:[50,300,500],1024:[100,500,1000],2048:[250,500,1250]}
+    custom_grid_search(batch_epoch_dict=bed,test_ratio=0.1,number_test=2)

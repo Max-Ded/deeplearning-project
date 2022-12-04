@@ -23,9 +23,7 @@ def measure_random(sample):
     score =0
     for index in range(len(sample)-1):
         if sample[index]!=sample[index+1]:
-            score+=5
-        else:
-            score-=5
+            score+=1
     return score
 
 def measure_entropy(sample):
@@ -33,13 +31,7 @@ def measure_entropy(sample):
     e = 0
     for v in c.values():
         e-= v/len(sample) * np.log(v/len(sample))
-    score =1
-    for index in range(len(sample)-1):
-        if sample[index]!=sample[index+1]:
-            score+=1
-        else:
-            score-=2
-    return e * score
+    return e 
 
 def most_recent_tick():
     df,_ = import_data.main_pipeline(feat_function=0,split=False)
@@ -57,23 +49,27 @@ def most_recent_tick():
     df_count['ratio'] = (df_count["0"]/df_count["1"]).apply(lambda x : max(x,1/x))
     df_count = df_count.sort_values("ratio",ascending=False).drop("ratio",axis=1)
 
-    df_count.index = [f"{k[0]}\n{round(measure_entropy(k[0]),2)}" for k in list(df_count.index)]
-    
+    df_count.index = [f"{k[0]}" for k in list(df_count.index)]
+
     fig = plt.figure(figsize=(25, 8))
     ax = fig.add_subplot(111)
-    ax.plot([k for k in df_count.index],[round(measure_entropy(k),2) for k in df_count.index],color="red",linestyle="dashed")
-    df_count.plot(ax=ax,kind='bar', rot=0, xlabel='Serie', ylabel='Value', title='My Plot',secondary_y=True)
+    #ax.plot([k for k in df_count.index],[round(measure_entropy(k),2) for k in df_count.index],color="red",linestyle="dashed",label="Entropy")
+    #ax.plot([k for k in df_count.index],[round(measure_random(k),2) for k in df_count.index],color="blue",linestyle="dashed",label="Random")
+
+    bar_plot =df_count.plot(ax=ax,kind='bar', rot=0, xlabel='Serie', ylabel='Value', title='Distribution of Labels',secondary_y=True)
     # add some labels
     for c in ax.containers:
         # set the bar label
         ax.bar_label(c, fmt='%.0f', label_type='edge')
+    ax.tick_params(axis='x', labelrotation=45)
 
     # move the legend out of the plot
-    ax.legend(title='Columns', bbox_to_anchor=(1, 1.02), loc='upper left')
-
-
-
+    #ax.legend(handles= [bar_plot],title='Columns', bbox_to_anchor=(1, 1.02), loc='upper left')
+    ax.legend()
     plt.show()
+
+    fig.savefig(fname="image/count_tick_serie_simple.png")
+
 
 if __name__=="__main__":
     most_recent_tick()

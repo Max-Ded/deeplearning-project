@@ -152,7 +152,7 @@ def rescale_features_4(frame=None,path=None):
 
     return frame
 
-def rescale_features_0(frame=None,path=None):
+def rescale_features_0(frame=None,path=None,double_label=False):
     frame = _norm_input_function(frame,path)
     return frame
 
@@ -304,7 +304,7 @@ def rescale_features_6(frame=None,path=None,double_label=False):
     frame["SUM_V_B"] = frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"]
 
     frame["V_M_L"] = frame["SUM_V_A"] - frame["SUM_V_B"]
-    frame["V_M_L"] = frame["V_M_L"].apply(lambda x: 1 if x>0 else 0)
+    frame["V_M_L"] = frame["V_M_L"].apply(lambda x: 1 if x>0 else -1)
 
     frame["WPV_MID_DIF"] = -frame["MID_P"] * (frame["SUM_V_A"]+frame["SUM_V_B"])
     for side in ["A","B"]:
@@ -318,8 +318,10 @@ def rescale_features_6(frame=None,path=None,double_label=False):
         for level in range(1,5):
             frame[f"{side}_V_L{level}_LOG"] = np.log(frame[f"{side}_V_L{level}"])
     for col in frame.columns:
-        if "LABEL" not in col and "LC" not in col:
+        if "LABEL" not in col and "LC" not in col and col!="V_M_L":
             frame[col] = (mean_normalization(frame[col]))
+    for col in  ["LC_1","LC_2","LC_3","LC_4","LC_5"]:
+        frame[col] = frame[col]*2 -1
     frame["LC_FP"] = mean_normalization(frame["LC_FP"])
     frame["LC_FP_R"] = mean_normalization(frame["LC_FP_R"])
     frame["LC_CONCAT_RANDOM"] = mean_normalization(frame["LC_CONCAT_RANDOM"])
@@ -387,6 +389,6 @@ if __name__=="__main__":
     frame,_ = main_pipeline(feat_function=6,split=False)
     print(frame.head())
     print(frame.describe())
-    frame.sample(n=2500).to_excel("output/processed_data.xlsx")
+    #frame.sample(n=2500).to_excel("output/processed_data.xlsx")
     #x_train,y_train,x_test,y_test = split_training_data(frame=data,test_ratio=0.1)
     #["B_P_L4","B_P_L3","B_P_L2","B_P_L1","A_P_L4","A_P_L3","A_P_L2","A_P_L1"]
