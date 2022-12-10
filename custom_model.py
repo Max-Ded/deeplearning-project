@@ -28,11 +28,12 @@ def custom_accuracy(prediction : np.array,y_test):
     count = np.bincount(res)
     return count,len(res),count/len(res)
 
-def train_model_from_pipeline(model = None,epoch = 600,batch_size = 1000,plot_accuracy = False,test_ratio = 0.1,prt=True):
+def train_model_from_pipeline(model = None,feat_function=6,epoch = 600,batch_size = 1000,plot_accuracy = False,test_ratio = 0.1,prt=True,hidden_neurons=100):
     
-    frames,_ = import_data.main_pipeline(feat_function=6,test_ratio=test_ratio)
+    frames,_ = import_data.main_pipeline(feat_function=feat_function,test_ratio=test_ratio)
     x_train,y_train,x_test,y_test = frames
-    model = model if model else create_model(input_shape=x_train.shape[1])
+    hidden_neurons = 30 if feat_function == 1 else hidden_neurons if hidden_neurons else 100
+    model = model if model else create_model(input_shape=x_train.shape[1],hidden_neurons = hidden_neurons)
 
     history = model.fit(x_train.to_numpy(), y_train.to_numpy(),epochs= epoch ,batch_size =batch_size,verbose=0)
 
@@ -63,13 +64,13 @@ def train_model_from_pipeline(model = None,epoch = 600,batch_size = 1000,plot_ac
 
     return accuracy    
     
-def create_model(plot=False,input_shape=86):
+def create_model(plot=False,input_shape=86,hidden_neurons=100):
 
     model = keras.Sequential([
         keras.layers.InputLayer(input_shape=(input_shape,)),
-        keras.layers.Dense(100, activation="tanh",name="Hidden_layer_1"),
-        keras.layers.Dense(100, activation="tanh",name="Hidden_layer_2"),
-        keras.layers.Dense(100, activation="tanh",name="Hidden_layer_3"),
+        keras.layers.Dense(hidden_neurons, activation="tanh",name="Hidden_layer_1"),
+        keras.layers.Dense(hidden_neurons, activation="tanh",name="Hidden_layer_2"),
+        keras.layers.Dense(hidden_neurons, activation="tanh",name="Hidden_layer_3"),
         keras.layers.Dense(2, activation="softmax",name="Output")
     ])
     model.compile(optimizer=keras.optimizers.Adam(), loss="binary_crossentropy", metrics=["accuracy"])
@@ -150,4 +151,5 @@ def custom_grid_search(batch_epoch_dict,test_ratio=0.1,number_test = 1):
         f.write(cv_results_df.to_json())
 
 if __name__=="__main__":
-    full_predict(full_train(batch_size=1000,epoch=650,plot_accuracy=True))
+    train_model_from_pipeline(feat_function = 6,epoch=600,plot_accuracy=True,prt=True)
+    #full_predict(full_train(batch_size=1000,epoch=650,plot_accuracy=True))

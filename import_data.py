@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from collections import Counter
+import random
+
 COLUMNS = [\
     "LABEL",
     "A_P_L1",
@@ -178,6 +180,21 @@ def rescale_features_2(frame=None,path=None):
     frame =frame.drop("LABEL",axis=1)
     return frame
 
+def rescale_features_1(frame=None,path=None,double_label=False,no_label=False):
+    """
+    Lowest bid @ 0 , Highest ask at 1
+    Volumes as % of sum of volume
+    """
+    frame = _norm_input_function(frame,path)
+    for col in frame.columns:
+        if "LC" not in col and "LABEL" not in col:
+            frame[col] = mean_normalization(frame[col])
+    frame["LABEL"] = frame["LABEL"] *2 -1
+    frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1. else 0.)
+    frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1. else 0.)
+    frame =frame.drop("LABEL",axis=1)
+
+    return frame
 
 def rescale_features_5(frame=None,path=None):
     """
@@ -230,28 +247,6 @@ def rescale_features_5(frame=None,path=None):
     frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
     frame =frame.drop("LABEL",axis=1)
     
-    return frame
-
-
-def rescale_features_1(frame=None,path=None):
-    """
-    Lowest bid @ 0 , Highest ask at 1
-    Volumes as % of sum of volume
-    """
-    frame = _norm_input_function(frame,path)
-    frame["MID_P"] = (frame["A_P_L1"] + frame["B_P_L1"]) / 2
-    frame["scale"] = (frame["A_P_L4"] - frame["B_P_L4"])
-    for price_col in ["B_P_L3","B_P_L2","B_P_L1","A_P_L4","A_P_L3","A_P_L2","A_P_L1","MID_P"]:
-        frame[price_col] = (frame[price_col]-frame["B_P_L4"])/frame["scale"]
-    frame['SUM_V'] = frame["A_V_L1"] + frame["A_V_L2"] + frame["A_V_L3"] + frame["A_V_L4"] + frame["B_V_L1"] + frame["B_V_L2"] + frame["B_V_L3"] + frame["B_V_L4"] 
-    for vol_col in ["A_V_L1","A_V_L2","A_V_L3","A_V_L4","B_V_L1","B_V_L2","B_V_L3","B_V_L4"]:
-        frame[vol_col] = frame[vol_col] / frame["SUM_V"]
-    frame = frame.drop(['scale',"A_P_L4","B_P_L4","SUM_V"],axis=1)
-    for col in frame.columns:
-        frame[col] = frame[col] *2 -1 
-    frame["LABEL_UP"] = frame["LABEL"].apply(lambda x : 1 if x == 1 else 0)
-    frame["LABEL_DOWN"] = frame["LABEL"].apply(lambda x : 1 if x == -1 else 0)
-    frame =frame.drop("LABEL",axis=1)
     return frame
 
 def rescale_features_3(frame=None,path=None):
@@ -339,9 +334,8 @@ def rescale_features_6(frame=None,path=None,double_label=False,no_label=False):
 def split_training_data(frame = None,test_ratio = 0.1,path=None,double_label=False):
 
     frame = _norm_input_function(frame,path)
-    test_frame = frame.sample(frac = test_ratio).reset_index(drop=True)
+    test_frame = frame.sample(frac=test_ratio).reset_index(drop=True)
     train_frame = frame.drop(test_frame.index).reset_index(drop=True)
-    
     if double_label:
         y_train = train_frame[["LABEL_UP","LABEL_DOWN"]]
         x_train = train_frame.drop(["LABEL_UP","LABEL_DOWN"],axis=1)
@@ -387,9 +381,8 @@ Compute level gap on sell/buy side : Train model on the 3x2 delta
 """
 
 if __name__=="__main__":
-    frame,_ = main_pipeline(feat_function=6,split=False)
-    print(frame.head())
-    print(frame.describe())
+    frame,_ = main_pipeline(feat_function=6,split=True)
+    print(frame)
     #frame.sample(n=2500).to_excel("output/processed_data.xlsx")
     #x_train,y_train,x_test,y_test = split_training_data(frame=data,test_ratio=0.1)
     #["B_P_L4","B_P_L3","B_P_L2","B_P_L1","A_P_L4","A_P_L3","A_P_L2","A_P_L1"]

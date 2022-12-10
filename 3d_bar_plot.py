@@ -7,9 +7,6 @@ import pandas as pd
 df = pd.read_json("cv_result_x_cloud.json")
 df_ = pd.read_json("cv_result_x.json")
 
-print(df.max())
-print(df_.max())
-"""
 colors = plt.cm.Spectral(df["mean_acc"].values/df["mean_acc"].values.max())
 
 
@@ -51,4 +48,3 @@ ax.set_zlabel('Mean accuracy')
 #plt.colorbar(bb,label="Accuracy", orientation="vertical",ax=ax)
 
 plt.show()
-"""
